@@ -1,0 +1,320 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>進階旱災風險地圖</title>
+  <!-- ArcGIS API -->
+  <link rel="stylesheet" href="https://js.arcgis.com/4.28/esri/themes/light/main.css">
+  <script src="https://js.arcgis.com/4.28/"></script>
+  <!-- 自訂樣式 -->
+  <link rel="stylesheet" href="/CSS/style_pro.css">
+  <!-- Font Awesome -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.4/css/all.min.css">
+</head>
+
+<body>
+<header>
+  <h1>澎湖縣旱災災害風險平台</h1>
+  <nav>
+    <ul>
+      <li><a href="主頁.html">回主頁</a></li>
+      <li><a href="一般地圖.html">一般地圖</a></li>
+      <li><a href="進階地圖.html">進階地圖</a></li>
+    </ul>
+  </nav>
+</header>
+
+<main>
+  <div class="map-wrapper">
+    <div id="mapContainer1" class="map-box"></div>
+    <div id="mapContainer2" class="map-box"></div>
+  </div>
+
+  <div style="text-align: center; margin-top: 10px;">
+    <button id="toggle-diff-map-btn" class="diff-toggle-btn">切換到差異地圖</button>
+    <button id="toggle-original-map-btn" class="diff-toggle-btn" style="display: none;">切換到原始地圖</button>
+  </div>
+
+  <section class="custom-data-section">
+    <div class="two-column">
+      <div class="parameter-container">
+
+          <!-- 六大階段 -->
+          <div class="custom-risk-panel">
+            <h3>自訂風險參數</h3>
+            <p>填入各指標的原始數值（或標準化分數），若空白將使用預設值。</p>
+          
+            <!-- 發生階段 -->
+            <div class="parameter-group">
+              <h4>發生階段</h4>
+              <div class="risk-controls-row">
+                <div class="risk-control">
+                  <label for="rainfall_0_3">降雨量 (mm)</label>
+                  <input id="rainfall_0_3" type="number" placeholder="輸入降雨量">
+                  <small>若空白則使用預設值</small>
+                </div>
+                <div class="risk-control">
+                  <label for="evapotranspiration_0_3">蒸散量 (mm)</label>
+                  <input id="evapotranspiration_0_3" type="number" placeholder="輸入蒸散量">
+                  <small>若空白則使用預設值</small>
+                </div>
+                <div class="risk-control">
+                  <label for="delay_0_4">乾旱延時 (天)</label>
+                  <input id="delay_0_4" type="number" placeholder="輸入乾旱延時">
+                  <small>若空白則使用預設值</small>
+                </div>
+              </div>
+            </div>
+          
+            <!-- 預防階段 -->
+            <div class="parameter-group">
+              <h4>預防階段</h4>
+              <div class="risk-controls-row">
+                <div class="risk-control">
+                  <label for="surface_water_0_5">地面水 (標準化1-10)</label>
+                  <input id="surface_water_0_5" type="number" min="1" max="10" placeholder="1~10">
+                  <small>若空白則使用預設值</small>
+                </div>
+                <div class="risk-control">
+                  <label for="groundwater_0_5">地下水 (標準化1-10)</label>
+                  <input id="groundwater_0_5" type="number" min="1" max="10" placeholder="1~10">
+                  <small>若空白則使用預設值</small>
+                </div>
+              </div>
+            </div>
+          
+            <!-- 耗用階段 -->
+            <div class="parameter-group">
+              <h4>耗用階段</h4>
+              <div class="risk-controls-row">
+                <div class="risk-control">
+                  <label for="water_life_0_4">民生用水 (m³)</label>
+                  <input id="water_life_0_4" type="number" placeholder="輸入民生用水量">
+                  <small>若空白則使用預設值</small>
+                </div>
+                <div class="risk-control">
+                  <label for="water_industry_0_3">工業用水 (m³)</label>
+                  <input id="water_industry_0_3" type="number" placeholder="輸入工業用水量">
+                  <small>若空白則使用預設值</small>
+                </div>
+                <div class="risk-control">
+                  <label for="water_tourism_0_3">觀光用水 (m³)</label>
+                  <input id="water_tourism_0_3" type="number" placeholder="輸入觀光用水量">
+                  <small>若空白則使用預設值</small>
+                </div>
+              </div>
+            </div>
+          
+            <!-- 供給階段 -->
+            <div class="parameter-group">
+              <h4>供給階段</h4>
+              <div class="risk-controls-row">
+                <div class="risk-control">
+                  <label for="Seawater_Desalination">海水淡化量 (m³)</label>
+                  <input id="Seawater_Desalination" type="number" placeholder="輸入海水淡化量">
+                  <small>若空白則使用預設值</small>
+                </div>
+                <div class="risk-control">
+                  <label for="Brackish_Water_Desalination">鹹水淡化量 (m³)</label>
+                  <input id="Brackish_Water_Desalination" type="number" placeholder="輸入鹹水淡化量">
+                  <small>若空白則使用預設值</small>
+                </div>
+                <div class="risk-control">
+                  <label for="Groundwater_Volume">地下水量 (m³)</label>
+                  <input id="Groundwater_Volume" type="number" placeholder="輸入地下水量">
+                  <small>若空白則使用預設值</small>
+                </div>
+                <div class="risk-control">
+                  <label for="Reservoir_Lake_Volume">湖庫水量 (m³)</label>
+                  <input id="Reservoir_Lake_Volume" type="number" placeholder="輸入湖庫水量">
+                  <small>若空白則使用預設值</small>
+                </div>
+                <div class="risk-control">
+                  <label for="original_sum">各類供水總量 (m³)</label>
+                  <input id="original_sum" type="number" placeholder="輸入總供水量">
+                  <small>若空白則使用預設值</small>
+                </div>
+                <div class="risk-control">
+                  <label for="water_saving_0_2">節水措施 (標準化1-10)</label>
+                  <input id="water_saving_0_2" type="number" min="1" max="10" placeholder="1~10">
+                  <small>若空白則使用預設值</small>
+                </div>
+              </div>
+            </div>
+          
+            <!-- 脆弱階段 -->
+            <div class="parameter-group">
+              <h4>脆弱階段</h4>
+              <div class="risk-controls-row">
+                <div class="risk-control">
+                  <label for="resident_population_0_4">常住人口數</label>
+                  <input id="resident_population_0_4" type="number" placeholder="輸入人口數">
+                  <small>若空白則使用預設值</small>
+                </div>
+                <div class="risk-control">
+                  <label for="industry_score_0_3">產業產值</label>
+                  <input id="industry_score_0_3" type="number" placeholder="輸入產業產值">
+                  <small>若空白則使用預設值</small>
+                </div>
+                <div class="risk-control">
+                  <label for="tourism_score_0_3">觀光產值</label>
+                  <input id="tourism_score_0_3" type="number" placeholder="輸入觀光產值">
+                  <small>若空白則使用預設值</small>
+                </div>
+              </div>
+            </div>
+          
+            <!-- 強化階段 -->
+            <div class="parameter-group">
+              <h4>強化階段</h4>
+              <div class="risk-controls-row">
+                <div class="risk-control">
+                  <label for="Total_Budget">總預算 (元)</label>
+                  <input id="Total_Budget" type="number" placeholder="輸入總預算">
+                  <small>若空白則使用預設值</small>
+                </div>
+                <div class="risk-control">
+                  <label for="Disaster_Prevention_Budget">防災預算 (元)</label>
+                  <input id="Disaster_Prevention_Budget" type="number" placeholder="輸入防災預算">
+                  <small>若空白則使用預設值</small>
+                </div>
+                <div class="risk-control">
+                  <label for="Pump_Station">加壓水站數</label>
+                  <input id="Pump_Station" type="number" placeholder="輸入加壓水站數">
+                  <small>若空白則使用預設值</small>
+                </div>
+                <div class="risk-control">
+                  <label for="Water_Outages">停水次數</label>
+                  <input id="Water_Outages" type="number" placeholder="輸入停水次數">
+                  <small>若空白則使用預設值</small>
+                </div>
+                <div class="risk-control">
+                  <label for="resilient_community_0_3">韌性社區 (標準化1-10)</label>
+                  <input id="resilient_community_0_3" type="number" min="1" max="10" placeholder="1~10">
+                  <small>若空白則使用預設值</small>
+                </div>
+                <div class="risk-control">
+                  <label for="emergency_water_0_3">緊急水源 (標準化1-10)</label>
+                  <input id="emergency_water_0_3" type="number" min="1" max="10" placeholder="1~10">
+                  <small>若空白則使用預設值</small>
+                </div>
+              </div>
+            </div>
+          
+            <!-- 按鈕區 -->
+            <div class="risk-button-bar" style="margin-top: 20px;">
+              <button id="calculate-all-btn" class="calculate-btn"><i class="fas fa-play"></i> 計算全區風險</button>
+              <button id="reset-parameters-btn" class="reset-btn"><i class="fas fa-undo"></i> 重設參數</button>
+            </div>
+          
+            <div id="calculation-result" style="display:none; margin-top:1rem;"></div>
+          </div>
+          
+
+      <div class="ai-panel">
+        <h3>AI 本地大模型分析</h3>
+        <button id="ai-analysis-btn" class="ai-btn"><i class="fas fa-robot"></i> AI 分析建議</button>
+        <div id="ai-analysis-result" style="display:none; margin-top:1rem;">
+          <h4>分析結果</h4>
+          <pre id="analysis-content" style="white-space: pre-wrap;"></pre>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="text-section">
+    <h2>研究方法與算法</h2>
+    <p>本平台採用「發生-預防」、「耗用-供給」、「脆弱-強化」三階段架構，整合多項指標，呈現澎湖地區旱災風險空間分布。左側為基礎風險，右側可自訂條件並即時視覺化。</p>
+  </section>
+</main>
+
+<footer>
+  <ul>
+    <li><a href="#">國家災害防救中心</a></li>
+    <li><a href="#">經濟部水利署</a></li>
+    <li><a href="#">說明</a></li>
+  </ul>
+</footer>
+
+<!-- ✅ 專案自訂邏輯 -->
+<script src="/JavaScript/dynamic-layer-renderer_pro.js" defer></script>
+
+<!-- ✅ ArcGIS 初始化 -->
+<script>
+  require([
+    "esri/Map",
+    "esri/views/MapView",
+    "esri/layers/FeatureLayer"
+  ], function(Map, MapView, FeatureLayer) {
+    const map1 = new Map({ basemap: "topo-vector" });
+    const map2 = new Map({ basemap: "topo-vector" });
+
+    const view1 = new MapView({
+      container: "mapContainer1",
+      map: map1,
+      center: [119.5664, 23.5659],
+      zoom: 12
+    });
+
+    const view2 = new MapView({
+      container: "mapContainer2",
+      map: map2,
+      center: [119.5664, 23.5659],
+      zoom: 12
+    });
+
+    window.view1 = view1;
+    window.view2 = view2;
+
+    // 左側村里固定圖層
+    const leftLayer = new FeatureLayer({
+      url: "https://services.arcgis.com/UopYU5ZgwPIJ4jb6/arcgis/rest/services/澎湖縣村里風險圖/FeatureServer/0",
+      outFields: ["*"],
+      title: "澎湖縣村里風險圖"
+    });
+    map1.add(leftLayer);
+
+    // 右側基礎透明圖層
+    const rightLayer = new FeatureLayer({
+      url: "https://services.arcgis.com/UopYU5ZgwPIJ4jb6/arcgis/rest/services/澎湖縣村里風險圖/FeatureServer/0",
+      outFields: ["*"],
+      opacity: 0.2
+    });
+    map2.add(rightLayer);
+
+    // 初始化倍率選單與第一次視覺化
+    view2.when(() => {
+      if (typeof window.initCustomParameters === "function") window.initCustomParameters();
+      if (typeof window.updateAllRiskVisualization === "function") window.updateAllRiskVisualization();
+    });
+  });
+</script>
+
+<script>
+  document.addEventListener('DOMContentLoaded', function() {
+    if (window.view2) {
+      view2.on("click", function(event) {
+        view2.hitTest(event).then(function(response) {
+          const result = response.results.find(r => 
+            r.graphic &&
+            r.graphic.layer &&
+            r.graphic.layer.id === "dynamicRiskLayer"
+          );
+          if (result && result.graphic) {
+            view2.popup.open({
+              features: [result.graphic],
+              location: event.mapPoint
+            });
+          }
+        });
+      });
+    } else {
+      console.warn("view2 尚未初始化，無法綁定點擊事件");
+    }
+  });
+  </script>
+  
+
+</body>
+</html>

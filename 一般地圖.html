@@ -1,0 +1,2453 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Sans&display=swap" rel="stylesheet">
+  <title>基礎旱災風險呈現</title>
+  <!-- ✅ ArcGIS JS API CDN -->
+  <link rel="stylesheet" href="https://js.arcgis.com/4.28/esri/themes/light/main.css">
+  <script src="https://js.arcgis.com/4.28/"></script>
+  <link rel="stylesheet" href="style.css">
+  <!-- 添加 Font Awesome 圖示 -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.4/css/all.min.css">
+  <style>
+    /* 頁面內部樣式 */
+    .custom-popup { padding: 10px; }
+    .data-table { width: 100%; border-collapse: collapse; margin-bottom: 15px; }
+    .data-table th, .data-table td { border: 1px solid #ddd; padding: 8px; text-align: left; }
+    .data-table th { background-color: #f2f2f2; }
+    .user-input { margin-top: 15px; padding-top: 10px; border-top: 1px solid #eee; }
+    .user-input label { display: block; margin-top: 10px; }
+    .user-input input[type="range"] { width: 70%; display: inline-block; vertical-align: middle; }
+    .user-input span { display: inline-block; width: 30px; margin-left: 10px; }
+    #calculate-btn { margin-top: 15px; padding: 8px 15px; background-color: #0056b3; color: white; border: none; border-radius: 4px; cursor: pointer; }
+    #calculate-btn:hover { background-color: #003f7f; }
+    /* 通知與 loading 樣式 */
+    .success-message {
+      position: fixed;
+      top: 20px;
+      right: 20px;
+      padding: 10px 20px;
+      background-color: #4CAF50;
+      color: white;
+      border-radius: 5px;
+      z-index: 1000;
+      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+    }
+    .error-message {
+      position: fixed;
+      top: 20px;
+      right: 20px;
+      padding: 10px 20px;
+      background-color: #f44336;
+      color: white;
+      border-radius: 5px;
+      z-index: 1000;
+      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+    }
+    .loading-indicator {
+      position: fixed;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      padding: 20px 30px;
+      background-color: rgba(0, 0, 0, 0.7);
+      color: white;
+      border-radius: 8px;
+      z-index: 2000;
+    }
+  </style>
+</head>
+
+<body>
+  <!-- 頁面導覽列 -->
+  <header>
+    <h1>旱災災害風險平台</h1>
+    <nav class="top-nav">
+      <ul>
+        <li><a href="主頁.html">回主頁</a></li>
+        <li><a href="一般地圖.html">氣候變遷下的旱災災害風險對照</a></li>
+        <li><a href="進階地圖.html">氣候變遷下澎湖縣旱災災害風險自訂</a></li>
+      </ul>
+    </nav>
+  </header>
+
+  <!-- 主要內容區域 -->
+  <main>
+    <div class="map-container">
+      <h1>氣候變遷下的旱災災害風險地圖</h1>
+      <div class="map-wrapper">
+        <div id="mapContainer1" class="map-box"></div>
+        <div id="mapContainer2" class="map-box"></div>
+      </div>
+    </div>
+
+      <div style="text-align: center; margin-top: 10px;">
+        <button id="toggle-diff-map-btn" class="diff-toggle-btn">切換到差異地圖</button>
+        <button id="toggle-original-map-btn" class="diff-toggle-btn" style="display: none;">切換到原始地圖</button>
+      </div>
+    </section>
+
+    <!-- 使用者自訂圖層資料區塊 -->
+    <section class="custom-data-section">
+      <h2>自訂風險參數</h2>
+      <p>調整下方參數以模擬不同情境下的旱災風險分佈<br>調整後點擊「計算全區風險」按鈕將重新計算所有村里的風險指數。</p>
+    <div class="two-column">
+      <div class="parameter-container" style="width: 100%;">
+        <div class="custom-risk-panel">
+          <h3>自訂風險參數</h3>
+          <p>選擇下列參數倍率以模擬不同條件下的風險變化：</p>
+          
+          <div class="parameters-grid">
+            <!-- 第一行：發生階段 (Occurrence) -->
+            <div class="parameter-row">
+              <div class="stage-title">
+                <h4>發生階段</h4>
+              </div>
+              <div class="stage-controls">
+                <div class="risk-control">
+                  <label for="rainfall">降雨量</label>
+                  <select id="rainfall"></select>
+                </div>
+                <div class="risk-control">
+                  <label for="evapotranspiration">蒸發量</label>
+                  <select id="evapotranspiration"></select>
+                </div>
+                <div class="risk-control">
+                  <label for="delay">乾旱延時</label>
+                  <select id="delay"></select>
+                </div>
+              </div>
+            </div>
+            
+            <!-- 第二行：預防階段 (Prevention) -->
+            <div class="parameter-row">
+              <div class="stage-title">
+                <h4>預防階段</h4>
+              </div>
+              <div class="stage-controls">
+                <div class="risk-control">
+                  <label for="surface-water">地面水</label>
+                  <select id="surface-water"></select>
+                </div>
+                <div class="risk-control">
+                  <label for="groundwater">地下水</label>
+                  <select id="groundwater"></select>
+                </div>
+                <div class="risk-control empty-control"></div>
+              </div>
+            </div>
+            
+            <!-- 第三行：耗用階段 (Consumption) -->
+            <div class="parameter-row">
+              <div class="stage-title">
+                <h4>耗用階段</h4>
+              </div>
+              <div class="stage-controls">
+                <div class="risk-control">
+                  <label for="water-domestic">民生用水</label>
+                  <select id="water-domestic"></select>
+                </div>
+                <div class="risk-control">
+                  <label for="water-industry">工業用水</label>
+                  <select id="water-industry"></select>
+                </div>
+                <div class="risk-control">
+                  <label for="water-tourism">觀光用水</label>
+                  <select id="water-tourism"></select>
+                </div>
+              </div>
+            </div>
+            
+            <!-- 第四行：供給階段 (Supply) -->
+            <div class="parameter-row">
+              <div class="stage-title">
+                <h4>供給階段</h4>
+              </div>
+              <div class="stage-controls">
+                <div class="risk-control">
+                  <label for="water-supply">各類供水量</label>
+                  <select id="water-supply"></select>
+                </div>
+                <div class="risk-control">
+                  <label for="improvement">改善措施</label>
+                  <select id="improvement"></select>
+                </div>
+                <div class="risk-control">
+                  <label for="water-saving">節水措施</label>
+                  <select id="water-saving"></select>
+                </div>
+              </div>
+            </div>
+            
+            <!-- 第五行：脆弱階段 (Vulnerability) -->
+            <div class="parameter-row">
+              <div class="stage-title">
+                <h4>脆弱階段</h4>
+              </div>
+              <div class="stage-controls">
+                <div class="risk-control">
+                  <label for="resident-population">常住人口數</label>
+                  <select id="resident-population"></select>
+                </div>
+                <div class="risk-control">
+                  <label for="industry-score">產業產值</label>
+                  <select id="industry-score"></select>
+                </div>
+                <div class="risk-control">
+                  <label for="tourism-score">觀光產值</label>
+                  <select id="tourism-score"></select>
+                </div>
+              </div>
+            </div>
+            
+            <!-- 第六行：強化階段 (Reinforcement) -->
+            <div class="parameter-row">
+              <div class="stage-title">
+                <h4>強化階段</h4>
+              </div>
+              <div class="stage-controls">
+                <div class="risk-control">
+                  <label for="disaster-fund">災防預備金</label>
+                  <select id="disaster-fund"></select>
+                </div>
+                <div class="risk-control">
+                  <label for="resilient-community">韌性社區</label>
+                  <select id="resilient-community"></select>
+                </div>
+                <div class="risk-control">
+                  <label for="emergency-water">緊急水源</label>
+                  <select id="emergency-water"></select>
+                </div>
+              </div>
+            </div>
+          </div>
+          
+          <div id="calculation-result" style="display:none; margin-top:1rem;"></div>
+          <div class="risk-button-bar" style="margin-top: 20px;">
+            <button id="calculate-all-btn" type="button" class="calculate-btn">
+              <i class="fas fa-play"></i> 計算全區風險
+            </button>
+            <button id="reset-parameters-btn" type="button" style="background-color:#6c757d;">
+              <i class="fas fa-undo"></i> 重設參數
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+    </section>
+
+    <script>
+      // ========== AI 分析函式 - 增強版 ==========
+// 新增的部分
+async function triggerAIAnalysis() {
+    // 檢查 view2 是否已初始化
+if (typeof view2 === 'undefined') {
+console.warn('地圖視圖尚未初始化，AI 分析將延遲執行');
+setTimeout(triggerAIAnalysis, 2000);
+return;
+  }
+  const aiBtn = document.getElementById('ai-analysis-btn');
+  const resultDiv = document.getElementById('ai-analysis-result');
+  const contentDiv = document.getElementById('analysis-content');
+
+  // 增加即時反饋
+  resultDiv.style.display = 'block';
+  contentDiv.innerHTML = '<div class="loading-ai-analysis">AI 分析中，請稍候...<div class="spinner"></div></div>';
+  aiBtn.disabled = true;
+  aiBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> 分析中...';
+  
+  // 增加一個進度指示器
+  const progressIndicator = document.createElement('div');
+  progressIndicator.className = 'progress-bar';
+  progressIndicator.innerHTML = `
+    <div class="progress-step active">數據準備</div>
+    <div class="progress-step">模型分析中</div>
+    <div class="progress-step">渲染結果</div>
+  `;
+  contentDiv.appendChild(progressIndicator);
+  
+  // 顯示預設內容
+  const placeholderContent = document.createElement('div');
+  placeholderContent.className = 'placeholder-content';
+  placeholderContent.innerHTML = `
+    <div class="placeholder-section">
+      <h3>風險排名</h3>
+      <p>正在分析高風險村里...</p>
+    </div>
+    <div class="placeholder-section">
+      <h3>詳細分析</h3>
+      <p>正在生成分析內容...</p>
+    </div>
+    <div class="placeholder-section">
+      <h3>改善建議</h3>
+      <p>正在整理建議方案...</p>
+    </div>
+  `;
+  contentDiv.appendChild(placeholderContent);
+  
+  // 設置請求超時
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), 300000);
+  
+  try {
+    // 更新進度
+    const updateProgress = (step) => {
+      const steps = progressIndicator.querySelectorAll('.progress-step');
+      steps.forEach((s, i) => {
+        if (i < step) s.className = 'progress-step completed';
+        else if (i === step) s.className = 'progress-step active';
+        else s.className = 'progress-step';
+      });
+    };
+    
+    updateProgress(0); // 初始狀態
+    
+    // 使用 fetch 與 signal 支援中止請求
+    const res = await fetch('http://localhost:3000/api/local-ai-analysis', {
+      signal: controller.signal
+    });
+    
+    if (!res.ok) throw new Error(`AI API 錯誤: ${res.status}`);
+    
+    updateProgress(1); // 進入模型分析階段
+    
+    const aiData = await res.json();
+    clearTimeout(timeoutId);
+    
+    updateProgress(2); // 進入渲染階段
+    
+    // 使用 setTimeout 避免阻塞主線程
+    setTimeout(() => {
+      try {
+        // 格式化 AI 分析結果，使用自定義格式提高可讀性
+        const formattedContent = formatAIAnalysis(aiData.suggestions);
+        
+        // 使用 DocumentFragment 減少回流和重繪
+        const fragment = document.createDocumentFragment();
+        const tempDiv = document.createElement('div');
+        tempDiv.innerHTML = formattedContent;
+        
+        while (tempDiv.firstChild) {
+          fragment.appendChild(tempDiv.firstChild);
+        }
+        
+        // 替換內容
+        contentDiv.innerHTML = '';
+        contentDiv.appendChild(fragment);
+        
+        // 添加時間戳以顯示分析時間
+        const timestamp = document.createElement('div');
+        timestamp.className = 'analysis-timestamp';
+        timestamp.textContent = `分析時間: ${new Date().toLocaleString()}`;
+        contentDiv.appendChild(timestamp);
+        
+        // 顯示成功訊息
+        if (window.showSuccess) {
+          window.showSuccess('AI 分析完成');
+        }
+      } catch (formatError) {
+        console.error('格式化 AI 內容失敗:', formatError);
+        contentDiv.innerHTML = `<div class="error-message"><h4>格式化分析內容失敗</h4><p>${formatError.message}</p></div>`;
+      }
+    }, 10); // 給予主線程喘息空間的微小延遲
+  } catch (err) {
+    clearTimeout(timeoutId);
+    console.error('AI 分析失敗:', err);
+    
+    let errorMessage = err.message;
+    if (err.name === 'AbortError') {
+      errorMessage = '請求超時，LM Studio 回應時間過長';
+    }
+    
+    contentDiv.innerHTML = `
+      <div class="error-message">
+        <h4>AI 分析失敗</h4>
+        <p>${errorMessage}</p>
+        <p>請確認 LM Studio 已啟動並加載 qwen2.5-coder-14b-instruct 模型。</p>
+        <button id="retry-analysis" class="btn btn-warning">重試分析</button>
+      </div>`;
+    
+    // 綁定重試按鈕
+    setTimeout(() => {
+      const retryBtn = document.getElementById('retry-analysis');
+      if (retryBtn) {
+        retryBtn.addEventListener('click', triggerAIAnalysis);
+      }
+    }, 10);
+  } finally {
+    aiBtn.disabled = false;
+    aiBtn.innerHTML = '<i class="fas fa-robot"></i> AI 分析建議';
+  }
+}
+
+      // 格式化 AI 分析結果 - 強化版
+      function formatAIAnalysis(content) {
+        if (!content) return '<p>無分析結果</p>';
+        
+        // 先移除 AI 可能帶入的 markdown 標記號
+        let cleanContent = content
+          // 移除 Markdown 標題符號
+          .replace(/^#+\s+/gm, '')
+          // 移除加粗符號
+          .replace(/\*\*/g, '')
+          // 移除斜體符號
+          .replace(/\*/g, '')
+          // 移除列表數字
+          .replace(/^\d+\.\s+/gm, '')
+          // 移除列表標記
+          .replace(/^-\s+/gm, '');
+        
+        // 識別主要段落區塊
+        const sections = [
+          {name: '風險排名', class: 'risk-ranking-section'},
+          {name: '詳細分析', class: 'detailed-analysis-section'},
+          {name: '改善建議', class: 'improvement-section'}
+        ];
+        
+        // 識別村里名稱
+        const villageNames = [
+          '西衛里', '朝陽里', '光榮里', '東文里', '西文里', 
+          '陽明里', '復興里', '長安里', '中央里', '啟明里'
+        ];
+        
+        // 使用 HTML 標籤構建帶樣式的輸出
+        let styledContent = cleanContent;
+        
+        // 處理主要段落標題
+        sections.forEach(section => {
+          const regex = new RegExp(`(${section.name})(\\s|：|:)`, 'g');
+          styledContent = styledContent.replace(regex, `<div class="${section.class}"><h3 class="section-title">${section.name}</h3>`);
+        });
+        
+        // 處理村里名稱為子標題
+        villageNames.forEach(village => {
+          const regex = new RegExp(`(${village})(\\s|：|:)`, 'g');
+          styledContent = styledContent.replace(regex, `<h4 class="village-title">${village}</h4><div class="village-content">`);
+        });
+        
+        // 添加必要的閉合標籤
+        styledContent = styledContent
+          .replace(/(?=<h4 class="village-title">)/g, '</div>')  // 村里內容區塊的閉合標籤
+          .replace(/(?=<div class="[^"]+?-section">)/g, '</div>') // 節區塊的閉合標籤
+          + '</div></div>'; // 最後一個區塊的閉合標籤
+        
+        // 簡單的段落分割
+        styledContent = styledContent.replace(/\n{2,}/g, '</p><p>');
+        styledContent = styledContent.replace(/\n/g, '<br>');
+        
+        // 確保內容在 p 標籤內
+        styledContent = `<p>${styledContent}</p>`;
+        
+        // 修復可能出現的多餘閉合標籤
+        styledContent = styledContent.replace(/<\/div><\/div><h4/g, '</div><h4');
+        styledContent = styledContent.replace(/<\/p><p><\/div>/g, '</p></div>');
+        styledContent = styledContent.replace(/<p><\/p>/g, '');
+        
+        return styledContent;
+      }
+      
+      // 綁定按鈕點擊事件
+      document.addEventListener('DOMContentLoaded', function() {
+        const aiBtn = document.getElementById('ai-analysis-btn');
+        if (aiBtn) {
+          aiBtn.addEventListener('click', triggerAIAnalysis);
+        }
+        
+        // 添加必要的樣式
+        const styleElement = document.createElement('style');
+        styleElement.textContent = `
+          /* AI 分析結果樣式 - 強化版 */
+          #analysis-content {
+            font-family: 'Noto Sans TC', sans-serif;
+            line-height: 1.8;
+            overflow-y: auto;
+            max-height: 500px;
+            padding: 20px;
+            font-size: 14px;
+            color: #333;
+            background-color: #fff;
+            border-radius: 6px;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+          }
+          
+          /* 主要標題樣式 */
+          .section-title {
+            font-size: 20px;
+            font-weight: bold;
+            color: #2c3e50;
+            margin: 20px 0 12px 0;
+            padding-bottom: 8px;
+            border-bottom: 2px solid #3498db;
+          }
+          
+          /* 村里標題樣式 */
+          .village-title {
+            font-size: 18px;
+            font-weight: bold;
+            color: #1a5276;
+            margin: 16px 0 10px 0;
+            padding-left: 10px;
+            border-left: 4px solid #f39c12;
+          }
+          
+          /* 村里內容樣式 */
+          .village-content {
+            padding-left: 14px;
+            position: relative;
+          }
+          
+          /* 不同區塊樣式 */
+          .risk-ranking-section {
+            background-color: #f8f9fa;
+            padding: 12px;
+            border-radius: 6px;
+            margin-bottom: 18px;
+          }
+          
+          .detailed-analysis-section {
+            background-color: #f1f8ff;
+            padding: 12px;
+            border-radius: 6px;
+            margin-bottom: 18px;
+          }
+          
+          .improvement-section {
+            background-color: #f0fff4;
+            padding: 12px;
+            border-radius: 6px;
+            margin-bottom: 18px;
+          }
+          
+          /* 時間戳樣式 */
+          .analysis-timestamp {
+            font-size: 12px;
+            color: #777;
+            text-align: right;
+            margin-top: 15px;
+            font-style: italic;
+          }
+          
+          /* 載入動畫樣式 */
+          .loading-ai-analysis {
+            text-align: center;
+            padding: 30px;
+            background-color: #f8f9fa;
+            border-radius: 8px;
+          }
+          
+          .loading-ai-analysis .spinner {
+            border: 4px solid #f3f3f3;
+            border-top: 4px solid #3498db;
+            border-radius: 50%;
+            width: 40px;
+            height: 40px;
+            margin: 20px auto;
+            animation: spin 2s linear infinite;
+          }
+          
+          @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+          }
+          
+          /* 錯誤訊息樣式 */
+          .error-message {
+            background-color: #fff2f2;
+            border-left: 4px solid #e74c3c;
+            padding: 15px;
+            border-radius: 5px;
+          }
+          
+          .error-message h4 {
+            color: #c0392b;
+            margin-top: 0;
+          }
+        `;
+        document.head.appendChild(styleElement);
+      });
+      
+      // 立即執行綁定事件
+      const aiBtn = document.getElementById('ai-analysis-btn');
+      if (aiBtn) {
+        aiBtn.addEventListener('click', triggerAIAnalysis);
+      }
+      </script>
+
+    <section class="text-section">
+      <h2>研究方法與算法</h2>
+      <p>本研究採用「發生-預防」、「耗用-供給」、「脆弱-強化」的三階段風險評估架構，整合多項風險評估指標，以呈現澎湖地區的乾旱風險空間分布。左側地圖顯示基礎風險評估結果，右側地圖可切換不同情境下的風險變化，提供決策者多元的風險參考依據。</p>
+    </section>
+  </main>
+
+  <!-- JavaScript 載入 ArcGIS 地圖及功能 -->
+  <script>
+  require([
+    "esri/config",
+    "esri/Map",
+    "esri/views/MapView",
+    "esri/layers/FeatureLayer",
+    "esri/widgets/Popup",
+    "esri/PopupTemplate",
+    "esri/request",
+    "esri/Graphic",
+    "esri/layers/GraphicsLayer",
+    "esri/widgets/Legend",
+    "esri/identity/IdentityManager" 
+  ], function(esriConfig, Map, MapView, FeatureLayer, Popup, PopupTemplate, esriRequest, Graphic, GraphicsLayer, Legend, IdentityManager) {
+    // 現在 IdentityManager 正確引入了
+    IdentityManager.on("dialog-create", function() {
+      console.log("身分驗證對話框將被創建");
+      // 保存頁面狀態
+      sessionStorage.setItem("returnUrl", window.location.href);
+    });
+    
+    IdentityManager.on("dialog-cancel", function() {
+      console.log("身分驗證對話框被取消");
+      showWarning("身分驗證被取消，部分功能可能無法使用");
+    });
+    
+    // 註冊已保存的令牌
+    try {
+      const savedCreds = localStorage.getItem("arcgis_credentials");
+      if (savedCreds) {
+        const credentials = JSON.parse(savedCreds);
+        credentials.forEach(cred => {
+          if (cred.token && cred.server) {
+            IdentityManager.registerToken({
+              server: cred.server,
+              token: cred.token,
+              expires: cred.expires || null,
+              userId: cred.userId || null
+            });
+          }
+        });
+        console.log("身分驗證令牌已恢復");
+      }
+    } catch (e) {
+      console.error("恢復身分驗證令牌失敗", e);
+    }
+
+        /* ------------------------------
+           API 連線檢查與備用 API 設置
+        ------------------------------- */      
+        function checkApiConnection() {
+          console.log("檢查API連接...");
+          const statusIndicator = document.createElement('div');
+          statusIndicator.id = 'api-status';
+          statusIndicator.style.position = 'fixed';
+          statusIndicator.style.bottom = '10px';
+          statusIndicator.style.left = '10px';
+          statusIndicator.style.padding = '5px 10px';
+          statusIndicator.style.borderRadius = '3px';
+          statusIndicator.style.fontSize = '12px';
+          statusIndicator.style.zIndex = '1000';
+          statusIndicator.style.opacity = '0.8';
+          statusIndicator.innerHTML = '檢查API連接...';
+          statusIndicator.style.backgroundColor = '#f8f9fa';
+          statusIndicator.style.color = '#6c757d';
+          document.body.appendChild(statusIndicator);
+          
+          fetch('http://localhost:3000/api/all-villages-data')
+            .then(response => {
+              if (!response.ok) { throw new Error(`API回應錯誤: ${response.status}`); }
+              return response.json();
+            })
+            .then(data => {
+              console.log(`API連接成功，取得${data.length}筆村里資料`);
+              statusIndicator.innerHTML = `<span style="color:green;">✓</span> API連接正常`;
+              statusIndicator.style.backgroundColor = '#d4edda';
+              statusIndicator.style.color = '#155724';
+              setTimeout(() => { statusIndicator.style.opacity = '0'; setTimeout(() => statusIndicator.remove(), 1000); }, 3000);
+              window.villageDataCache = data;
+              console.log("村里資料已快取");
+            })
+            .catch(error => {
+              console.error("API連接失敗:", error);
+              statusIndicator.innerHTML = `<span style="color:red;">✗</span> API連接失敗`;
+              statusIndicator.style.backgroundColor = '#f8d7da';
+              statusIndicator.style.color = '#721c24';
+              setupFallbackApi();
+            });
+        }
+        
+        function setupFallbackApi() {
+          console.warn("API連接失敗，設置備用API");
+          const warningNotice = document.createElement('div');
+          warningNotice.className = 'api-warning';
+          warningNotice.style.position = 'fixed';
+          warningNotice.style.top = '80px';
+          warningNotice.style.left = '50%';
+          warningNotice.style.transform = 'translateX(-50%)';
+          warningNotice.style.padding = '10px 20px';
+          warningNotice.style.backgroundColor = '#fff3cd';
+          warningNotice.style.color = '#856404';
+          warningNotice.style.borderRadius = '5px';
+          warningNotice.style.zIndex = '2000';
+          warningNotice.style.boxShadow = '0 2px 10px rgba(0,0,0,0.2)';
+          warningNotice.style.maxWidth = '80%';
+          warningNotice.style.textAlign = 'center';
+          warningNotice.innerHTML = `
+            <p><strong>注意：</strong> 無法連接到本地API服務器</p>
+            <p>系統將使用模擬數據，部分功能可能無法正常工作</p>
+            <p>請確保Node.js服務器正在運行: <code>node server.js</code></p>
+            <button id="dismiss-warning" style="background:#ffc107; border:none; padding:5px 10px; border-radius:3px; cursor:pointer; margin-top:5px;">我知道了</button>
+          `;
+          document.body.appendChild(warningNotice);
+          document.getElementById('dismiss-warning').addEventListener('click', function() { warningNotice.remove(); });
+          
+          window.mockApi = {
+            allVillagesData: generateMockVillageData(),
+            calculateRisk: function(villageId, params) {
+              const village = this.allVillagesData.find(v => v.id === villageId);
+              if (!village) return null;
+              const rainfallFactor = params.rainfallFactor || 1.0;
+              const populationFactor = params.populationFactor || 1.0;
+              const baseRisk = village.droughtIndex;
+              const newRisk = baseRisk * (1 + (Math.random() * 0.2 - 0.1) * rainfallFactor) * 
+                             (1 + (Math.random() * 0.2 - 0.1) * populationFactor);
+              return {
+                id: village.id,
+                name: village.name,
+                originalRiskIndex: baseRisk,
+                newRiskIndex: Math.max(0, Math.min(1, newRisk)),
+                rainfallFactor,
+                populationFactor
+              };
+            },
+        calculateAllRisks: function(params) {
+          const waterDomestic = params.waterDomestic || 1.0;
+          const waterTourism = params.waterTourism || 1.0;
+          const population = params.population || 1.0;
+          const waterSupply = params.waterSupply || 1.0;
+
+          this.allVillagesData.forEach(village => {
+            const baseRisk = village.droughtIndex;
+            const newRisk = baseRisk * 
+              (1 + (waterDomestic - 1) * 0.3) * 
+              (1 + (waterTourism - 1) * 0.2) * 
+              (1 + (population - 1) * 0.3) * 
+              (1 + (1 - waterSupply) * 0.2);
+            village.droughtIndex = Math.max(0, Math.min(1, newRisk));
+          });
+          const topChanged = [...this.allVillagesData]
+            .sort((a, b) => Math.abs(b.droughtIndex - a.droughtIndex) - Math.abs(a.droughtIndex - a.droughtIndex))
+            .slice(0, 5)
+            .map(v => ({
+              id: v.id,
+              name: v.name,
+              originalRiskIndex: v.droughtIndex,
+              newRiskIndex: v.droughtIndex
+            }));
+          return {
+            success: true,
+            totalVillages: this.allVillagesData.length,
+            averageRiskChange: 0.05,
+            topChangedVillages: topChanged
+          };
+        }
+      };
+          
+          const originalFetch = window.fetch;
+          window.fetch = function(url, options) {
+            console.log("攔截API請求:", url);
+            if (url.includes('/api/all-villages-data')) {
+              console.log("返回模擬村里數據");
+              return Promise.resolve({
+                ok: true,
+                json: () => Promise.resolve(window.mockApi.allVillagesData)
+              });
+            }
+            if (url.includes('/api/village-data')) {
+              const urlObj = new URL(url, window.location.origin);
+              const id = urlObj.searchParams.get('id') || urlObj.searchParams.get('esriId');
+              if (id) {
+                const villageData = window.mockApi.allVillagesData.find(v => 
+                  v.id === parseInt(id) || v.esriId === parseInt(id));
+                if (villageData) {
+                  console.log("返回模擬村里數據:", villageData);
+                  return Promise.resolve({
+                    ok: true,
+                    json: () => Promise.resolve(villageData)
+                  });
+                }
+              }
+            }
+            if (url.includes('/api/calculate-risk') && options && options.method === 'POST') {
+              let params;
+              try { params = JSON.parse(options.body); } catch (e) { params = {}; }
+              const result = window.mockApi.calculateRisk(params.id, {
+                rainfallFactor: params.rainfallFactor,
+                populationFactor: params.populationFactor
+              });
+              if (result) {
+                console.log("返回模擬風險計算結果:", result);
+                return Promise.resolve({
+                  ok: true,
+                  json: () => Promise.resolve(result)
+                });
+              }
+            }
+            if (url.includes('/api/calculate-all-risks') && options && options.method === 'POST') {
+              let params;
+              try { params = JSON.parse(options.body); } catch (e) { params = {}; }
+              const result = window.mockApi.calculateAllRisks(params);
+              console.log("返回模擬全區風險計算結果:", result);
+              return Promise.resolve({
+                ok: true,
+                json: () => Promise.resolve(result)
+              });
+            }
+            return originalFetch(url, options);
+          };
+        }
+        
+        function generateMockVillageData() {
+          const villages = [];
+          for (let i = 1; i <= 20; i++) {
+            villages.push({
+              id: i,
+              esriId: i,
+              name: `模擬村里 ${i}`,
+              population: Math.floor(Math.random() * 2000 + 500),
+              droughtIndex: parseFloat((Math.random() * 0.4 + 0.5).toFixed(4)),
+              rainfall: Math.floor(Math.random() * 300 + 800),
+              syncDate: new Date().toISOString()
+            });
+          }
+          return villages;
+        }
+        
+        /* ------------------------------
+           初始化地圖與圖層
+        ------------------------------- */
+        var popupTemplate = {
+          title: "村里資訊",
+          content: [{
+            type: "fields",
+            fieldInfos: [
+              { fieldName: "風險指數", label: "風險指數", visible: true },
+              { fieldName: "人口數", label: "人口數", visible: true }
+            ]
+          }]
+        };
+        
+        var map1 = new Map({ basemap: "topo-vector" });
+        var map2 = new Map({ basemap: "topo-vector" });
+        
+        var view1 = new MapView({
+          container: "mapContainer1",
+          map: map1,
+          center: [119.5664, 23.5659],
+          zoom: 12,
+          popup: {
+            dockEnabled: true,
+            dockOptions: { buttonEnabled: false, breakpoint: false }
+          }
+        });
+        view1.when(() => {
+          const colorRamp = {
+            min: 1,
+            max: 5,
+            colors: [
+              [255, 255, 255, 0.8],   // 極低風險
+              [255, 235, 214, 0.8],   // 低風險
+              [255, 191, 128, 0.8],   // 中風險
+              [255, 127, 80, 0.8],    // 高風險
+              [180, 0, 0, 0.9]        // 極高風險
+            ]
+          };
+          if (typeof addLegendToMap === 'function') {
+            addLegendToMap(view1, colorRamp);
+          } else {
+            console.warn('addLegendToMap 函式尚未載入');
+          }
+        });
+
+        
+        var view2 = new MapView({
+          container: "mapContainer2",
+          map: map2,
+          center: [119.5664, 23.5659],
+          zoom: 12,
+          popup: {
+            dockEnabled: true,
+            dockOptions: { buttonEnabled: false, breakpoint: false },
+          }
+        });
+        
+        window.view1 = view1;
+        window.view2 = view2;
+
+
+// 左側基礎圖層
+// 村里風險固定數據
+  const villageRiskData = [
+  {
+    "村里": "復興里",
+    "風險": 2.5151617588930963
+  },
+ {
+  "村里": "長安里",
+  "風險": 3.1970687970904943
+ },
+ {
+  "村里": "中央里",
+  "風險": 2.810557746769177
+ },
+ {
+  "村里": "啟明里",
+  "風險": 4.026809260724433
+ },
+ {
+  "村里": "重慶里",
+  "風險": 3.3765204435460503
+ },
+ {
+  "村里": "中興里",
+  "風險": 3.0414502192327184
+ },
+ {
+  "村里": "光復里",
+  "風險": 4.218015759395382
+ },
+ {
+  "村里": "光榮里",
+  "風險": 4.297525432543965
+ },
+ {
+  "村里": "光明里",
+  "風險": 2.799792609209057
+ },
+ {
+  "村里": "朝陽里",
+  "風險": 4.211328796205657
+ },
+ {
+  "村里": "陽明里",
+  "風險": 4.5357377363296445
+ },
+ {
+  "村里": "重光里",
+  "風險": 2.106238594694768
+ },
+ {
+  "村里": "西衛里",
+  "風險": 4.514720642541614
+ },
+ {
+  "村里": "西文里",
+  "風險": 4.6255985028861595
+ },
+ {
+  "村里": "東文里",
+  "風險": 4.378774296603778
+ },
+ {
+  "村里": "案山里",
+  "風險": 3.3565349604901358
+ },
+ {
+  "村里": "光華里",
+  "風險": 2.790857395202555
+ },
+ {
+  "村里": "前寮里",
+  "風險": 2.846664038617291
+ },
+ {
+  "村里": "石泉里",
+  "風險": 3.473072771071574
+ },
+ {
+  "村里": "菜園里",
+  "風險": 1.7871226884785212
+ },
+ {
+  "村里": "東衛里",
+  "風險": 2.326376181034928
+ },
+ {
+  "村里": "安宅里",
+  "風險": 1.7347361053598092
+ },
+ {
+  "村里": "烏崁里",
+  "風險": 2.1786715933969543
+ },
+ {
+  "村里": "興仁里",
+  "風險": 3.542876278685252
+ },
+ {
+  "村里": "鐵線里",
+  "風險": 1.749023741316475
+ },
+ {
+  "村里": "山水里",
+  "風險": 3.376608901064626
+ },
+ {
+  "村里": "鎖港里",
+  "風險": 3.7312632884212458
+ },
+ {
+  "村里": "五德里",
+  "風險": 1.828659757698454
+ },
+ {
+  "村里": "井垵里",
+  "風險": 1.7995221292451289
+ },
+ {
+  "村里": "嵵裡里",
+  "風險": 2.1801229402492837
+ },
+ {
+  "村里": "風櫃里",
+  "風險": 1.9519324903830337
+ },
+ {
+  "村里": "虎井里",
+  "風險": 2.343252891703256
+ },
+ {
+  "村里": "桶盤里",
+  "風險": 1.7166551950117666
+ },
+ {
+  "村里": "湖西村",
+  "風險": 2.692724715101407
+ },
+ {
+  "村里": "湖東村",
+  "風險": 1.738816283170402
+ },
+ {
+  "村里": "青螺村",
+  "風險": 1.7128075284580049
+ },
+ {
+  "村里": "白坑村",
+  "風險": 1.7378912242238582
+ },
+ {
+  "村里": "南寮村",
+  "風險": 2.219586882611199
+ },
+ {
+  "村里": "北寮村",
+  "風險": 1.7409303695048197
+ },
+ {
+  "村里": "紅羅村",
+  "風險": 2.207297056302816
+ },
+ {
+  "村里": "西溪村",
+  "風險": 1.7385792047471413
+ },
+ {
+  "村里": "成功村",
+  "風險": 1.4767278243506468
+ },
+ {
+  "村里": "東石村",
+  "風險": 1.7228918903137247
+ },
+ {
+  "村里": "中西村",
+  "風險": 1.7317154116748554
+ },
+ {
+  "村里": "潭邊村",
+  "風險": 1.7283620678639167
+ },
+ {
+  "村里": "鼎灣村",
+  "風險": 1.749488941333163
+ },
+ {
+  "村里": "許家村",
+  "風險": 1.7539074839133122
+ },
+ {
+  "村里": "沙港村",
+  "風險": 1.8564893185519271
+ },
+ {
+  "村里": "城北村",
+  "風險": 1.9158494816220435
+ },
+ {
+  "村里": "太武村",
+  "風險": 1.692571215713684
+ },
+ {
+  "村里": "隘門村",
+  "風險": 3.191716758879368
+ },
+ {
+  "村里": "林投村",
+  "風險": 2.546882083820611
+ },
+ {
+  "村里": "尖山村",
+  "風險": 3.1368819299562283
+ },
+ {
+  "村里": "龍門村",
+  "風險": 2.7061228480691466
+ },
+ {
+  "村里": "菓葉村",
+  "風險": 1.9939551363298627
+ },
+ {
+  "村里": "中屯村",
+  "風險": 1.788966356493543
+ },
+ {
+  "村里": "講美村",
+  "風險": 1.7968477147444297
+ },
+ {
+  "村里": "城前村",
+  "風險": 1.7164563645598603
+ },
+ {
+  "村里": "鎮海村",
+  "風險": 1.730777470657157
+ },
+ {
+  "村里": "港子村",
+  "風險": 2.135259681883508
+ },
+ {
+  "村里": "岐頭村",
+  "風險": 1.7303520362109548
+ },
+ {
+  "村里": "小赤村",
+  "風險": 1.7205337449143001
+ },
+ {
+  "村里": "赤崁村",
+  "風險": 2.2064483272355915
+ },
+ {
+  "村里": "瓦硐村",
+  "風險": 1.7148757552068434
+ },
+ {
+  "村里": "後寮村",
+  "風險": 1.6653056849188292
+ },
+ {
+  "村里": "通梁村",
+  "風險": 2.336307546483102
+ },
+ {
+  "村里": "吉貝村",
+  "風險": 2.0240991809053592
+ },
+ {
+  "村里": "鳥嶼村",
+  "風險": 1.9660306435401396
+ },
+ {
+  "村里": "員貝村",
+  "風險": 1.7218377548836452
+ },
+ {
+  "村里": "大倉村",
+  "風險": 1.772847739175859
+ },
+ {
+  "村里": "橫礁村",
+  "風險": 1.7441268316539849
+ },
+ {
+  "村里": "合界村",
+  "風險": 1.7284576135496035
+ },
+ {
+  "村里": "小門村",
+  "風險": 1.7367965382466475
+ },
+ {
+  "村里": "竹灣村",
+  "風險": 1.8860225383248823
+ },
+ {
+  "村里": "大池村",
+  "風險": 1.6623134002765658
+ },
+ {
+  "村里": "二崁村",
+  "風險": 1.7274034299696497
+ },
+ {
+  "村里": "池東村",
+  "風險": 1.694652358935599
+ },
+ {
+  "村里": "池西村",
+  "風險": 1.6702566285797718
+ },
+ {
+  "村里": "赤馬村",
+  "風險": 1.6800911224331092
+ },
+ {
+  "村里": "內垵村",
+  "風險": 1.7163253402868675
+ },
+ {
+  "村里": "外垵村",
+  "風險": 2.3357815836006837
+ },
+ {
+  "村里": "東安村",
+  "風險": 1.746459269549462
+ },
+ {
+  "村里": "西安村",
+  "風險": 1.7323224724658586
+ },
+ {
+  "村里": "中社村",
+  "風險": 1.7433689565180035
+ },
+ {
+  "村里": "水垵村",
+  "風險": 1.7358521461866587
+ },
+ {
+  "村里": "將軍村",
+  "風險": 1.7298447071872816
+ },
+ {
+  "村里": "東坪村",
+  "風險": 1.738630901509242
+ },
+ {
+  "村里": "西坪村",
+  "風險": 1.7330684164970596
+ },
+ {
+  "村里": "東吉村",
+  "風險": 1.742927881694698
+ },
+ {
+  "村里": "花嶼村",
+  "風險": 1.6923577120219444
+ },
+ {
+  "村里": "東湖村",
+  "風險": 1.6823553226477557
+ },
+ {
+  "村里": "西湖村",
+  "風險": 1.729119017220828
+ },
+ {
+  "村里": "中和村",
+  "風險": 1.738261314737533
+ },
+ {
+  "村里": "平和村",
+  "風險": 1.7514125943017476
+ },
+ {
+  "村里": "海豐村",
+  "風險": 1.7489754843679883
+ },
+ {
+  "村里": "南港村",
+  "風險": 2.4360103257254804
+ }
+];
+
+// 創建村里名稱到風險值的映射
+const villageRiskMap = {};
+villageRiskData.forEach(item => {
+  villageRiskMap[item.村里] = item.風險;
+});
+
+// 定義顏色區間
+const colorRamps = [
+  { minValue: 0, maxValue: 1.5, color: [255, 255, 255, 0.8] }, // 極低風險 - 白色
+  { minValue: 1.5, maxValue: 2.5, color: [255, 235, 214, 0.8] }, // 低風險 - 淺橙色
+  { minValue: 2.5, maxValue: 3.5, color: [255, 191, 128, 0.8] }, // 中風險 - 中橙色
+  { minValue: 3.5, maxValue: 4.5, color: [255, 127, 80, 0.8] }, // 高風險 - 深橙色
+  { minValue: 4.5, maxValue: 5.0, color: [180, 0, 0, 0.9] } // 極高風險 - 深紅色
+];
+
+// 根據風險值獲取顏色
+function getColorByRisk(riskValue) {
+  for (const ramp of colorRamps) {
+    if (riskValue >= ramp.minValue && riskValue < ramp.maxValue) {
+      return ramp.color;
+    }
+  }
+  return colorRamps[0].color; // 默認返回第一個顏色
+}
+
+// 創建自定義渲染器函數
+function createCustomRenderer() {
+  const uniqueValueInfos = [];
+  
+  // 為每個村里創建一個唯一值渲染項
+  Object.keys(villageRiskMap).forEach(villageName => {
+    const riskValue = villageRiskMap[villageName];
+    const color = getColorByRisk(riskValue);
+    
+    uniqueValueInfos.push({
+      value: villageName,
+      symbol: {
+        type: "simple-fill",
+        color: color,
+        outline: { color: [0, 0, 0, 1], width: 0.5 }
+      }
+    });
+  });
+  
+  return {
+    type: "unique-value",
+    field: "村里",
+    uniqueValueInfos: uniqueValueInfos,
+    defaultSymbol: {
+      type: "simple-fill",
+      color: [240, 240, 240, 0.8], // 淺灰色作為默認
+      outline: { color: [200, 200, 200, 0.5], width: 0.5 }
+    }
+  };
+}
+
+// 創建 FeatureLayer 並應用自定義渲染器
+var leftFeatureLayer = new FeatureLayer({
+  url: "https://services.arcgis.com/UopYU5ZgwPIJ4jb6/arcgis/rest/services/%E6%BE%8E%E6%B9%96%E7%B8%A3%E6%9D%91%E9%87%8C%E9%A2%A8%E9%9A%AA%E5%9C%96/FeatureServer/0",
+  outFields: ["*"],
+  popupTemplate: {
+    title: "{村里}",
+    content: function(feature) {
+      const villageName = feature.graphic.attributes["村里"];
+      const riskValue = villageRiskMap[villageName] || "無數據";
+      
+      return `
+        <div class="custom-popup">
+          <table class="data-table">
+            <tr>
+              <th>村里名稱</th>
+              <td>${villageName}</td>
+            </tr>
+            <tr>
+              <th>風險指數</th>
+              <td>${typeof riskValue === 'number' ? riskValue.toFixed(4) : riskValue}</td>
+            </tr>
+          </table>
+        </div>
+      `;
+    }
+  },
+  renderer: createCustomRenderer()
+});
+
+// 設置全局變數以便訪問
+window.leftFeatureLayer = leftFeatureLayer;
+// 記錄圖層欄位
+logLayerFields(leftFeatureLayer);
+// 將圖層添加到地圖
+map1.add(leftFeatureLayer);
+        
+        /* ------------------------------
+           右側地圖初始化與提示
+        ------------------------------- */
+        const instructionLayer = new GraphicsLayer({ id: "instructionLayer" });
+        const instructionGraphic = new Graphic({
+          geometry: { type: "point", longitude: 119.5664, latitude: 23.5659 },
+          symbol: { type: "simple-marker", style: "circle", color: [0, 0, 0, 0], size: "0px" },
+          attributes: { title: "操作提示" },
+          popupTemplate: {
+            title: "{title}",
+            content: "請調整風險參數並點擊「計算全區風險」按鈕以顯示風險評估結果"
+          }
+        });
+        instructionLayer.add(instructionGraphic);
+        
+        function initializeRightMap() {
+          console.log("初始化右側地圖的基礎圖層");
+          map2.removeAll();
+          var rightBaseLayer = new FeatureLayer({
+            url: "https://services.arcgis.com/UopYU5ZgwPIJ4jb6/arcgis/rest/services/澎湖縣村里風險圖/FeatureServer/0",
+            outFields: ["*"],
+            popupTemplate: popupTemplate,
+            opacity: 0.7,
+            title: "澎湖縣村里風險圖",
+            renderer: {
+              type: "simple",
+              symbol: {
+                type: "simple-fill",
+                color: [255, 255, 255, 0.1],   // nearly transparent fill
+                outline: {
+                  color: [80, 80, 80, 0.4],    // light gray border
+                  width: 0.5
+                }
+              }
+            }
+          });
+          map2.add(rightBaseLayer);
+        }
+        
+        view2.when(() => {
+          initializeRightMap();
+        });
+        
+        /* ------------------------------
+           切換情境功能
+        ------------------------------- */
+        var scenarioURLs = {
+          1: "https://services.arcgis.com/UopYU5ZgwPIJ4jb6/arcgis/rest/services/Scenario_1/FeatureServer",
+          2: "https://services.arcgis.com/UopYU5ZgwPIJ4jb6/arcgis/rest/services/Scenario_2/FeatureServer",
+          3: "https://services.arcgis.com/UopYU5ZgwPIJ4jb6/arcgis/rest/services/Scenario_3/FeatureServer",
+          4: "https://services.arcgis.com/UopYU5ZgwPIJ4jb6/arcgis/rest/services/Scenario_4/FeatureServer",
+          5: "https://services.arcgis.com/UopYU5ZgwPIJ4jb6/arcgis/rest/services/Scenario_5/FeatureServer"
+        };
+        
+        window.changeLayer = function(scenarioNumber) {
+          if (scenarioURLs[scenarioNumber]) {
+            map2.removeAll();
+            var newLayer = new FeatureLayer({ url: scenarioURLs[scenarioNumber] });
+            map2.add(newLayer);
+            view2.popup.close();
+          } else {
+            alert("該情境數據未提供！");
+          }
+        };
+        
+        window.resetLayer = function() {
+          map2.removeAll();
+          initializeRightMap();
+        };
+        
+        /* ------------------------------
+           左側點擊查詢功能
+        ------------------------------- */
+        view1.on("click", function(event) {
+          view1.hitTest(event).then(function(response) {
+            if (response.results.length) {
+              const graphic = response.results.filter(function(result) {
+                return result.graphic.layer === leftFeatureLayer;
+              })[0].graphic;
+              
+              view1.popup.open({
+                features: [graphic],
+                location: event.mapPoint
+              });
+            }
+          });
+        });
+        
+        /* ------------------------------
+           查詢本地資料庫（模擬）功能
+        ------------------------------- */
+        function queryLocalDatabase(villageId, esriId, graphic, mapPoint) {
+          console.log("開始查詢本地數據庫:", villageId ? `村里ID: ${villageId}` : `ESRI ID: ${esriId}`);
+          setTimeout(() => {
+            var data = {
+              id: esriId || villageId,
+              name: `村里 ${esriId || villageId}`,
+              population: Math.floor(Math.random() * 2000 + 500),
+              droughtIndex: (Math.random() * 0.5 + 0.5).toFixed(4),
+              rainfall: Math.floor(Math.random() * 300 + 800),
+              syncDate: new Date().toISOString()
+            };
+            var customContent = `
+              <div class="custom-popup">
+                <h3>村里詳細資料</h3>
+                <table class="data-table">
+                  <tr>
+                    <th>項目</th>
+                    <th>數值</th>
+                  </tr>
+                  <tr>
+                    <td>村里名稱</td>
+                    <td>${data.name || '無資料'}</td>
+                  </tr>
+                  <tr>
+                    <td>人口數</td>
+                    <td>${data.population || '無資料'}</td>
+                  </tr>
+                  <tr>
+                    <td>乾旱風險指數</td>
+                    <td>${data.droughtIndex || '無資料'}</td>
+                  </tr>
+                  <tr>
+                    <td>年平均降雨量</td>
+                    <td>${data.rainfall ? data.rainfall + ' mm' : '無資料'}</td>
+                  </tr>
+                  <tr>
+                    <td>資料更新時間</td>
+                    <td>${data.syncDate ? new Date(data.syncDate).toLocaleString() : '無資料'}</td>
+                  </tr>
+                </table>
+                <div class="user-input">
+                  <h4>自訂風險參數</h4>
+                  <label for="rainfall-factor">降雨量係數:</label>
+                  <input type="range" id="rainfall-factor" min="0.5" max="1.5" step="0.1" value="1.0">
+                  <span id="rainfall-value">1.0</span>
+                  <label for="population-factor">人口係數:</label>
+                  <input type="range" id="population-factor" min="0.5" max="1.5" step="0.1" value="1.0">
+                  <span id="population-value">1.0</span>
+                  <button id="calculate-btn" type="button">計算風險</button>
+                </div>
+              </div>
+            `;
+            if (graphic) {
+              graphic.popupTemplate = {
+                title: data.name || "村里資料",
+                content: customContent
+              };
+              view1.popup.open({ features: [graphic], location: mapPoint });
+            } else {
+              view1.popup.title = data.name || "村里資料";
+              view1.popup.content = customContent;
+              if (typeof mapPoint === 'object' && mapPoint.x && mapPoint.y) {
+                view1.popup.location = mapPoint;
+              } else if (Array.isArray(mapPoint) && mapPoint.length >= 2) {
+                view1.popup.location = { x: mapPoint[0], y: mapPoint[1] };
+              }
+            }
+            setTimeout(function() {
+              var rainfallSlider = document.getElementById("rainfall-factor");
+              var rainfallValue = document.getElementById("rainfall-value");
+              var populationSlider = document.getElementById("population-factor");
+              var populationValue = document.getElementById("population-value");
+              var calculateButton = document.getElementById("calculate-btn");
+              
+              if (rainfallSlider && rainfallValue) {
+                rainfallSlider.addEventListener("input", function() { rainfallValue.textContent = this.value; });
+              }
+              if (populationSlider && populationValue) {
+                populationSlider.addEventListener("input", function() { populationValue.textContent = this.value; });
+              }
+              if (calculateButton) {
+                calculateButton.addEventListener("click", function(e) {
+                  e.preventDefault();
+                  if (typeof calculateRisk === 'function') {
+                    calculateRisk(data.id);
+                  }
+                });
+              }
+            }, 100);
+          }, 500);
+        }
+
+    /* ------------------------------
+       風險計算函數（單村里）
+    ------------------------------- */
+    window.calculateRisk = function(villageId) {
+      console.log("開始計算風險, 村里ID:", villageId);
+      const calculateBtn = document.getElementById("calculate-btn");
+      if (calculateBtn) {
+        if (calculateBtn.disabled) {
+          console.log("計算按鈕已禁用，避免重複提交");
+          return;
+        }
+        calculateBtn.disabled = true;
+        calculateBtn.textContent = "計算中...";
+        calculateBtn.style.opacity = "0.7";
+        calculateBtn.style.cursor = "not-allowed";
+      }
+      var rainfallFactor = parseFloat(document.getElementById("rainfall-factor").value);
+      var populationFactor = parseFloat(document.getElementById("population-factor").value);
+      if (isNaN(rainfallFactor) || isNaN(populationFactor)) {
+        showError("參數無效，請檢查輸入值");
+        if (calculateBtn) {
+          calculateBtn.disabled = false;
+          calculateBtn.textContent = "計算風險";
+          calculateBtn.style.opacity = "1";
+          calculateBtn.style.cursor = "pointer";
+        }
+        return;
+      }
+      console.log("用戶輸入參數:", { 降雨量係數: rainfallFactor, 人口係數: populationFactor });
+      var currentPopup = view1.popup;
+      var originalContent = currentPopup.content;
+      currentPopup.content = `
+        <div class="loading-indicator" style="text-align:center; padding:20px;">
+          <div class="spinner" style="border:4px solid #f3f3f3; border-top:4px solid #3498db; border-radius:50%; width:40px; height:40px; margin:0 auto 15px; animation:spin 2s linear infinite;"></div>
+          <p style="margin:0;">正在計算風險，請稍候...</p>
+  <style>
+            @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+          </style>
+        </div>
+      `;
+      const controller = new AbortController();
+      const signal = controller.signal;
+      const timeoutId = setTimeout(() => { controller.abort(); }, 10000);
+      fetch("http://localhost:3000/api/calculate-risk", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "X-Requested-With": "XMLHttpRequest"
+        },
+        body: JSON.stringify({
+          id: villageId,
+          rainfallFactor: rainfallFactor,
+          populationFactor: populationFactor
+        }),
+        signal: signal
+      })
+      .then(response => {
+        clearTimeout(timeoutId);
+        if (!response.ok) {
+          return response.json().then(errData => {
+            throw new Error(`API 請求失敗: ${response.status} - ${errData.error || response.statusText}`);
+          }).catch(err => {
+            if (err.name === "SyntaxError") { throw new Error(`API 請求失敗: ${response.status} - ${response.statusText}`); }
+            throw err;
+          });
+        }
+        return response.json();
+      })
+      .then(result => {
+        console.log("風險計算API響應:", result);
+        var changePercent = ((result.newRiskIndex - result.originalRiskIndex) / result.originalRiskIndex * 100).toFixed(2);
+        var changeClass = parseFloat(changePercent) > 0 ? 'risk-increase' : 'risk-decrease';
+        var changeIcon = parseFloat(changePercent) > 0 ? '↑' : '↓';
+        var resultContent = `
+          <div class="custom-popup">
+            <h3 style="margin-top:0;">風險計算結果</h3>
+            <div style="background-color: #f8f9fa; padding: 10px; border-radius: 5px; margin-bottom: 15px;">
+              <p style="margin:5px 0;"><strong>村里名稱:</strong> ${result.name}</p>
+              <p style="margin:5px 0;"><strong>原始風險指數:</strong> ${result.originalRiskIndex.toFixed(4)}</p>
+              <p style="margin:5px 0;"><strong>更新後風險指數:</strong> ${result.newRiskIndex.toFixed(4)}</p>
+              <p style="margin:5px 0;"><strong>變化百分比:</strong> 
+                <span class="${changeClass}" style="font-weight:bold;">${changeIcon} ${changePercent}%</span>
+              </p>
+            </div>
+            <div style="font-size:0.9em; color:#666; margin-bottom:15px;">
+              <p style="margin:5px 0;">使用參數: 降雨量係數 = ${rainfallFactor}, 人口係數 = ${populationFactor}</p>
+            </div>
+            <div class="action-buttons" style="display:flex; justify-content:space-between;">
+              <button id="popup-close-btn" type="button" style="background-color:#6c757d; color:white; border:none; padding:8px 15px; border-radius:4px; cursor:pointer;">關閉</button>
+              <button id="recalculate-risk-btn" type="button" style="background-color:#007bff; color:white; border:none; padding:8px 15px; border-radius:4px; cursor:pointer;">重新計算</button>
+            </div>
+          </div>
+        `;
+        currentPopup.content = resultContent;
+        showSuccess("風險計算完成！");
+        
+        // 為成功結果的按鈕綁定事件
+        setTimeout(() => {
+          const closeBtn = document.getElementById('popup-close-btn');
+          if (closeBtn) {
+            closeBtn.addEventListener('click', function(e) {
+              e.preventDefault();
+              view1.popup.close();
+            });
+          }
+          
+          const recalculateBtn = document.getElementById('recalculate-risk-btn');
+          if (recalculateBtn) {
+            recalculateBtn.addEventListener('click', function(e) {
+              e.preventDefault();
+              calculateRisk(villageId);
+            });
+          }
+
+
+        }, 100);
+      })
+      .catch(err => {
+        clearTimeout(timeoutId);
+        console.error("風險計算API請求失敗:", err);
+        let errorContent;
+        if (err.name === "AbortError") {
+          errorContent = `
+            <div style="padding:15px; background-color:#fff3cd; border:1px solid #ffeeba; border-radius:5px; color:#856404;">
+              <h3 style="margin-top:0;">請求超時</h3>
+              <p>計算風險時間過長，請稍後再試。</p>
+              <button id="retry-calculation-btn" type="button" style="background-color:#ffc107; color:#212529; border:none; padding:5px 10px; border-radius:3px; cursor:pointer; margin-top:10px;">重試</button>
+              <button id="back-to-form-btn" type="button" style="background-color:#6c757d; color:white; border:none; padding:5px 10px; border-radius:3px; cursor:pointer; margin-top:10px; margin-left:10px;">返回</button>
+            </div>
+          `;
+        } else {
+          errorContent = `
+            <div style="padding:15px; background-color:#f8d7da; border:1px solid #f5c6cb; border-radius:5px; color:#721c24;">
+              <h3 style="margin-top:0;">計算風險時出錯</h3>
+              <p>錯誤訊息: ${err.message}</p>
+              <div style="display:flex; justify-content:space-between; margin-top:10px;">
+                <button id="close-error-btn" type="button" style="background-color:#dc3545; color:white; border:none; padding:5px 10px; border-radius:3px; cursor:pointer;">關閉</button>
+                <button id="retry-after-error-btn" type="button" style="background-color:#17a2b8; color:white; border:none; padding:5px 10px; border-radius:3px; cursor:pointer;">重試</button>
+              </div>
+            </div>
+          `;
+        }
+        currentPopup.content = errorContent;
+        
+        // 為錯誤提示的按鈕綁定事件
+        setTimeout(() => {
+          if (err.name === "AbortError") {
+            // 超時錯誤的按鈕
+            const retryBtn = document.getElementById('retry-calculation-btn');
+            if (retryBtn) {
+              retryBtn.addEventListener('click', function(e) {
+                e.preventDefault();
+                calculateRisk(villageId);
+              });
+            }
+            
+            const backBtn = document.getElementById('back-to-form-btn');
+            if (backBtn) {
+              backBtn.addEventListener('click', function(e) {
+                e.preventDefault();
+                view1.popup.content = originalContent;
+              });
+            }
+          } else {
+            // 一般錯誤的按鈕
+            const closeBtn = document.getElementById('close-error-btn');
+            if (closeBtn) {
+              closeBtn.addEventListener('click', function(e) {
+                e.preventDefault();
+                view1.popup.close();
+              });
+            }
+            
+            const retryBtn = document.getElementById('retry-after-error-btn');
+            if (retryBtn) {
+              retryBtn.addEventListener('click', function(e) {
+                e.preventDefault();
+                calculateRisk(villageId);
+              });
+            }
+          }
+        }, 100);
+      })
+      .finally(() => {
+        if (calculateBtn) {
+          setTimeout(() => {
+            calculateBtn.disabled = false;
+            calculateBtn.textContent = "計算風險";
+            calculateBtn.style.opacity = "1";
+            calculateBtn.style.cursor = "pointer";
+          }, 500);
+        }
+      });
+    };
+    
+    /* ------------------------------
+       動態風險圖層視覺化功能
+    ------------------------------- */
+    window.currentDynamicLayer = null;
+
+    function updateAllRiskVisualization() {
+      console.log("更新右側地圖風險視覺化");
+      showLoadingMessage("正在生成風險圖層...");
+      fetch("http://localhost:3000/api/all-villages-data")
+        .then(response => {
+          if (!response.ok) { throw new Error(`API 請求失敗: ${response.status} ${response.statusText}`); }
+          return response.json();
+        })
+        .then(villagesData => {
+          console.log(`獲取了 ${villagesData.length} 筆村里風險數據`);
+          const dynamicLayerId = "dynamicRiskLayer";
+          const existingLayer = view2.map.findLayerById(dynamicLayerId);
+          if (existingLayer) { view2.map.remove(existingLayer); }
+          return createDynamicRiskLayer(villagesData, view2);
+        })
+        .then(() => {
+          hideLoadingMessage();
+          showSuccess("風險圖層更新完成！");
+          view2.popup.close();
+        })
+        .catch(err => {
+          hideLoadingMessage();
+          console.error("更新風險視覺化失敗:", err);
+          showError("無法更新風險視覺化: " + err.message);
+
+          // 錯誤時也要移除加載動畫
+          const mapBox = document.getElementById(view2.container.id);
+          if (mapBox) {
+            mapBox.classList.remove('map-update-animation');
+            const overlay = mapBox.querySelector('.loading-map-overlay');
+            if (overlay) overlay.remove();
+          }
+        });
+    }
+    
+    /* ------------------------------
+       使用者通知相關功能
+    ------------------------------- */
+
+    function fetchWithRetry(url, options, maxRetries = 3) {
+      return new Promise((resolve, reject) => {
+        const attempt = (retryCount) => {
+          // 如果不是首次嘗試，顯示重試狀態
+          if (retryCount > 0) {
+            showLoadingMessage(`正在重試請求 (${retryCount}/${maxRetries})...`);
+          }
+          
+          fetch(url, options)
+            .then(response => {
+              if (!response.ok) { throw new Error(`伺服器回應錯誤: ${response.status}`); }
+              resolve(response);
+            })
+            .catch(error => {
+              if (retryCount < maxRetries) {
+                console.warn(`請求失敗，正在重試 (${retryCount + 1}/${maxRetries})...`);
+                setTimeout(() => attempt(retryCount + 1), 1000);
+              } else {
+                console.error("重試次數已達上限，請求失敗:", error);
+                reject(error);
+              }
+            });
+        };
+        attempt(0);
+      });
+    }
+    
+    /* ------------------------------
+       輔助功能與參數初始化
+    ------------------------------- */
+    function logLayerFields(layer) {
+      layer.when(function() {
+        console.log("圖層載入完成，開始查詢欄位資訊");
+        layer.queryFeatures({
+          where: "1=1",
+          returnGeometry: false,
+          outFields: ["*"],
+          num: 1
+        }).then(function(result) {
+          if (result.features.length > 0) {
+            console.log("圖層要素欄位:", Object.keys(result.features[0].attributes));
+            console.log("示範要素屬性:", result.features[0].attributes);
+          } else {
+            console.log("圖層沒有要素");
+          }
+        }).catch(function(error) {
+          console.error("查詢圖層欄位時出錯:", error);
+        });
+      });
+    }
+
+    /* ------------------------------
+       修正版的 initCustomParameters 函數
+    ------------------------------- */
+// 新的初始化函數 - 支援所有參數 ⬇️⬇️⬇️
+function initCustomParameters() {
+  console.log("初始化自訂參數區塊");
+  const multipliers = [0.5, 0.75, 1.0, 1.25, 1.5];
+  
+  // 所有參數 ID 列表 - 按照 MySQL 欄位排序
+  const paramIds = [
+    // 發生階段
+    "rainfall", "evapotranspiration", "delay",
+    // 預防階段
+    "surface-water", "groundwater",
+    // 耗用階段
+    "water-domestic", "water-industry", "water-tourism",
+    // 供給階段
+    "water-supply", "improvement", "water-saving",
+    // 脆弱階段
+    "resident-population", "industry-score", "tourism-score",
+    // 強化階段
+    "disaster-fund", "resilient-community", "emergency-water"
+  ];
+  
+  // 綁定計算按鈕事件
+  const calculateBtn = document.getElementById('calculate-all-btn');
+  if (calculateBtn) {
+    // 移除所有已存在的點擊事件
+    const newBtn = calculateBtn.cloneNode(true);
+    calculateBtn.parentNode.replaceChild(newBtn, calculateBtn);
+    
+    newBtn.addEventListener('click', calculateAllVillagesRisk);
+    
+    // 視覺反饋效果
+    newBtn.addEventListener('mouseover', function () {
+      if (!this.disabled) {
+        this.style.transform = 'translateY(-2px)';
+        this.style.boxShadow = '0 6px 12px rgba(0, 0, 0, 0.15)';
+      }
+    });
+    newBtn.addEventListener('mouseout', function () {
+      this.style.transform = '';
+      this.style.boxShadow = '';
+    });
+  }
+  
+  // 綁定重設按鈕事件
+  const resetBtn = document.getElementById('reset-parameters-btn');
+  if (resetBtn) {
+    resetBtn.addEventListener('click', function() {
+      // 重設所有參數為預設值
+      paramIds.forEach(id => {
+        const select = document.getElementById(id);
+        if (select) select.value = "1.0";
+      });
+      showSuccess('參數已重置為預設值');
+    });
+  }
+  
+  // 可折疊的參數群組標題綁定點擊事件
+  const parameterGroups = document.querySelectorAll('.parameter-group h4');
+  parameterGroups.forEach(header => {
+    header.style.cursor = 'pointer';
+    header.style.position = 'relative';
+    header.style.paddingLeft = '20px';
+  
+    const indicator = document.createElement('span');
+    indicator.innerHTML = '▼';
+    indicator.style.position = 'absolute';
+    indicator.style.left = '0';
+    indicator.style.top = '50%';
+    indicator.style.transform = 'translateY(-50%)';
+    indicator.style.fontSize = '12px';
+    indicator.style.transition = 'transform 0.3s';
+    header.prepend(indicator);
+  
+    header.addEventListener('click', function () {
+      const content = this.parentElement.querySelectorAll('.risk-control');
+      let isCollapsed = this.getAttribute('data-collapsed') === 'true';
+      
+      // 跳過標題本身
+      for (let i = 0; i < content.length; i++) {
+        if (content[i] !== this) {
+          content[i].style.display = isCollapsed ? 'block' : 'none';
+          content[i].style.transition = 'all 0.3s';
+        }
+      }
+      
+      indicator.style.transform = isCollapsed ? 'translateY(-50%)' : 'translateY(-50%) rotate(-90deg)';
+      this.setAttribute('data-collapsed', !isCollapsed);
+    });
+  });
+}
+
+// 確保頁面載入完成後初始化參數
+document.addEventListener('DOMContentLoaded', initCustomParameters);
+// 新的初始化函數 - 支援所有參數 ⬆️⬆️⬆️
+
+    function addLegendToMap(view) {
+  const legendDiv = document.createElement("div");
+  legendDiv.className = "esri-widget esri-widget--panel";
+  legendDiv.style.padding = "10px";
+  legendDiv.style.backgroundColor = "white";
+  legendDiv.style.maxWidth = "250px";
+  
+  // 圖例HTML內容
+  legendDiv.innerHTML = `
+    <div style="font-weight: bold; margin-bottom: 10px; font-size: 14px;">澎湖縣村里風險</div>
+    <div style="margin-bottom: 5px; font-size: 12px;">Risk</div>
+    
+    <div style="display: flex; align-items: center; margin-bottom: 5px;">
+      <div style="width: 20px; height: 15px; margin-right: 8px; background-color: rgb(255, 255, 255);"></div>
+      <span style="font-size: 12px;">0 - 1.5 (極低風險)</span>
+    </div>
+    
+    <div style="display: flex; align-items: center; margin-bottom: 5px;">
+      <div style="width: 20px; height: 15px; margin-right: 8px; background-color: rgb(255, 235, 214);"></div>
+      <span style="font-size: 12px;">1.5 - 2.5 (低風險)</span>
+    </div>
+    
+    <div style="display: flex; align-items: center; margin-bottom: 5px;">
+      <div style="width: 20px; height: 15px; margin-right: 8px; background-color: rgb(255, 191, 128);"></div>
+      <span style="font-size: 12px;">2.5 - 3.5 (中風險)</span>
+    </div>
+    
+    <div style="display: flex; align-items: center; margin-bottom: 5px;">
+      <div style="width: 20px; height: 15px; margin-right: 8px; background-color: rgb(255, 127, 80);"></div>
+      <span style="font-size: 12px;">3.5 - 4.5 (高風險)</span>
+    </div>
+    
+    <div style="display: flex; align-items: center; margin-bottom: 5px;">
+      <div style="width: 20px; height: 15px; margin-right: 8px; background-color: rgb(180, 0, 0);"></div>
+      <span style="font-size: 12px;">4.5 - 5.0 (極高風險)</span>
+    </div>
+  `;
+  
+  view.ui.add(legendDiv, "bottom-right");
+}
+
+// 初始化地圖
+view1.when(() => {
+  view1.popup.autoOpenEnabled = false; // 默認關閉彈出視窗
+});
+
+view2.when(() => {
+  addLegendToMap(view2);
+  view2.popup.autoOpenEnabled = false; // 默認關閉彈出視窗
+});
+
+// 新增一個顯示警告信息的函數
+function showWarning(message) {
+  const warningDiv = document.createElement("div");
+  warningDiv.className = "warning-message animated-notification";
+  
+  // 添加圖示和訊息內容
+  warningDiv.innerHTML = `
+    <div class="notification-icon warning-icon">⚠️</div>
+    <div class="notification-content">${message}</div>
+  `;
+  
+  document.body.appendChild(warningDiv);
+  
+  // 強制重新計算樣式以觸發動畫
+  void warningDiv.offsetWidth;
+  warningDiv.classList.add("visible");
+  
+  // 設定自動移除計時器
+  setTimeout(() => {
+    warningDiv.classList.remove("visible");
+    warningDiv.classList.add("fade-out");
+    setTimeout(() => {
+      if (warningDiv.parentNode) {
+        warningDiv.remove();
+      }
+    }, 300);
+  }, 4000);
+}
+
+// 更新版的計算風險函數
+function calculateAllVillagesRisk(e) {
+  if (e) {
+    e.preventDefault();
+    e.stopPropagation();
+  }
+  
+  const btn = document.getElementById('calculate-all-btn');
+  const resultBox = document.getElementById('calculation-result');
+  
+  // 顯示載入動畫
+  resultBox.style.display = 'block';
+  resultBox.innerHTML = `
+    <div class="calculation-loading">
+      <div class="spinner" style="border:5px solid #f3f3f3; border-top:5px solid #3498db; border-radius:50%; width:40px; height:40px; margin:0 auto 20px; animation:spin 1.5s linear infinite;"></div>
+      <p>正在計算全區旱災風險...</p>
+      <p style="font-size:0.9em; color:#666;">這可能需要幾秒鐘時間</p>
+    </div>
+    <style>
+      @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+    </style>
+  `;
+  
+  btn.disabled = true;
+  btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> 計算中...';
+  
+  // 收集所有參數值 - 依照階段排序
+  const params = {
+    // 發生階段
+    rainfall: parseFloat(document.getElementById('rainfall').value),
+    evapotranspiration: parseFloat(document.getElementById('evapotranspiration').value),
+    delay: parseFloat(document.getElementById('delay').value),
+    
+    // 預防階段
+    surfaceWater: parseFloat(document.getElementById('surface-water').value),
+    groundwater: parseFloat(document.getElementById('groundwater').value),
+    
+    // 耗用階段
+    waterDomestic: parseFloat(document.getElementById('water-domestic').value),
+    waterIndustry: parseFloat(document.getElementById('water-industry').value),
+    waterTourism: parseFloat(document.getElementById('water-tourism').value),
+    
+    // 供給階段
+    waterSupply: parseFloat(document.getElementById('water-supply').value),
+    improvement: parseFloat(document.getElementById('improvement').value),
+    waterSaving: parseFloat(document.getElementById('water-saving').value),
+    
+    // 脆弱階段
+    population: parseFloat(document.getElementById('resident-population').value),
+    industryScore: parseFloat(document.getElementById('industry-score').value),
+    tourismScore: parseFloat(document.getElementById('tourism-score').value),
+    
+    // 強化階段
+    disasterFund: parseFloat(document.getElementById('disaster-fund').value),
+    resilientCommunity: parseFloat(document.getElementById('resilient-community').value),
+    emergencyWater: parseFloat(document.getElementById('emergency-water').value)
+  };
+  
+  // 發送參數到服務器
+  fetch('http://localhost:3000/api/calculate-all-risks', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify(params)
+  })
+  .then(response => response.json())
+  .then(data => {
+    console.log('計算結果:', data);
+    
+    // 顯示計算結果的摘要
+    resultBox.innerHTML = `
+      <div style="padding: 15px; background-color: #e9f7ef; border: 1px solid #d4edda; border-radius: 5px;">
+        <p>✅ 已重新計算 <strong>${data.updatedCount || 0}</strong> 筆村里風險值</p>
+        <p>所有參數變化已套用到風險評估中</p>
+      </div>
+    `;
+    
+    // 更新地圖視覺化
+    updateAllRiskVisualization();
+    showSuccess('風險計算完成！地圖已更新');
+    
+    // 觸發 AI 分析（如果該函數存在）
+    if (typeof triggerAIAnalysis === 'function') {
+      triggerAIAnalysis();
+    }
+  })
+  .catch(error => {
+    console.error('計算失敗:', error);
+    resultBox.innerHTML = `
+      <div style="padding: 15px; background-color: #f8d7da; border: 1px solid #f5c6cb; border-radius: 5px; color: #721c24;">
+        <h4>計算失敗</h4>
+        <p>${error.message}</p>
+        <button id="retry-calc-btn" style="background-color: #dc3545; color: white; border: none; padding: 5px 10px; border-radius: 3px; cursor: pointer;">重試</button>
+      </div>
+    `;
+    
+    // 綁定重試按鈕
+    setTimeout(() => {
+      document.getElementById('retry-calc-btn')?.addEventListener('click', calculateAllVillagesRisk);
+    }, 10);
+    
+    showError('計算失敗: ' + error.message);
+  })
+  .finally(() => {
+    btn.disabled = false;
+    btn.innerHTML = '<i class="fas fa-play"></i> 計算全區風險';
+  });
+  
+  return false;
+}
+
+// 初始化自訂風險參數
+document.addEventListener('DOMContentLoaded', function() {
+  // 初始化下拉選單選項
+  const options = [
+    { value: '0.5', text: '減少 50%' },
+    { value: '0.75', text: '減少 25%' },
+    { value: '1.0', text: '維持不變' },
+    { value: '1.25', text: '增加 25%' },
+    { value: '1.5', text: '增加 50%' },
+  ];
+
+  // 所有參數 ID 列表 - 按照六個階段分組
+  const allParamIds = [
+    // 發生階段
+    "rainfall", "evapotranspiration", "delay",
+    // 預防階段
+    "surface-water", "groundwater",
+    // 耗用階段
+    "water-domestic", "water-industry", "water-tourism",
+    // 供給階段
+    "water-supply", "improvement", "water-saving",
+    // 脆弱階段
+    "resident-population", "industry-score", "tourism-score",
+    // 強化階段
+    "disaster-fund", "resilient-community", "emergency-water"
+  ];
+
+  // 初始化所有下拉選單
+  allParamIds.forEach(id => {
+    const select = document.getElementById(id);
+    if (select) {
+      options.forEach(option => {
+        const optionElement = document.createElement('option');
+        optionElement.value = option.value;
+        optionElement.textContent = option.text;
+        select.appendChild(optionElement);
+      });
+      select.value = '1.0';
+    } else {
+      console.warn(`找不到下拉選單元素 #${id}`);
+    }
+  });
+
+  // 綁定計算按鈕事件
+  const calculateBtn = document.getElementById('calculate-all-btn');
+  if (calculateBtn) {
+    calculateBtn.addEventListener('click', calculateAllVillagesRisk);
+  }
+  
+  // 綁定重設按鈕事件
+  const resetBtn = document.getElementById('reset-parameters-btn');
+  if (resetBtn) {
+    resetBtn.addEventListener('click', function(e) {
+      e.preventDefault();
+      // 重設所有參數為預設值
+      allParamIds.forEach(id => {
+        const select = document.getElementById(id);
+        if (select) {
+          select.value = '1.0';
+        }
+      });
+      showSuccess('參數已重置為預設值');
+    });
+  }
+  
+    // 可折疊的參數群組標題綁定點擊事件
+    const parameterGroups = document.querySelectorAll('.parameter-group h4');
+    parameterGroups.forEach(header => {
+      header.style.cursor = 'pointer';
+      header.style.position = 'relative';
+      header.style.paddingLeft = '20px';
+
+      // 創建三角形指示器
+      const indicator = document.createElement('span');
+      indicator.innerHTML = '▼';
+      indicator.style.position = 'absolute';
+      indicator.style.left = '0';
+      indicator.style.top = '50%';
+      indicator.style.transform = 'translateY(-50%)';
+      indicator.style.fontSize = '12px';
+      indicator.style.transition = 'transform 0.3s';
+      header.prepend(indicator);
+
+      // 默認設置為展開狀態
+      header.setAttribute('data-collapsed', 'false');
+      
+      // 添加點擊事件
+      header.addEventListener('click', function() {
+        // 獲取當前折疊狀態
+        const isCollapsed = this.getAttribute('data-collapsed') === 'true';
+        
+        // 獲取該組下所有控制元素
+        const controls = this.parentElement.querySelectorAll('.risk-control');
+        
+        // 切換顯示狀態 - 注意邏輯反向！
+        controls.forEach(control => {
+          // 如果當前是折疊的，點擊後展開 (isCollapsed=true → 設為block)
+          // 如果當前是展開的，點擊後折疊 (isCollapsed=false → 設為none)
+          control.style.display = isCollapsed ? 'block' : 'none';
+        });
+        
+        // 更新三角形指示器方向
+        indicator.style.transform = isCollapsed ? 
+          'translateY(-50%)' :               // 展開狀態 - 向下三角形
+          'translateY(-50%) rotate(-90deg)'; // 折疊狀態 - 向右三角形
+        
+        // 儲存新的折疊狀態 (注意：這裡要反轉當前狀態)
+        this.setAttribute('data-collapsed', !isCollapsed);
+      });
+      
+      // 新增：初始狀態設為展開
+      const controls = header.parentElement.querySelectorAll('.risk-control');
+      controls.forEach(control => {
+        control.style.display = 'block'; // 預設顯示
+      });
+    });
+});
+
+
+// 顯示成功消息的函數
+function showSuccess(message) {
+  const successDiv = document.createElement('div');
+  successDiv.className = 'success-message';
+  successDiv.textContent = message;
+  document.body.appendChild(successDiv);
+  setTimeout(() => successDiv.remove(), 3000);
+}
+
+    // 新增：右側地圖點擊打開 Popup
+    view2.on("click", function(event) {
+      view2.hitTest(event).then(function(response) {
+        // 過濾出屬於我們動態風險圖層的 graphic
+        const result = response.results.find(r =>
+          r.graphic.layer && r.graphic.layer.id === "dynamicRiskLayer"
+        );
+        if (result && result.graphic) {
+          view2.popup.open({
+            features: [ result.graphic ],
+            location: event.mapPoint
+          });
+        }
+      });
+    });
+  });
+
+// 差異地圖切換功能
+let isDiffMode = false; // 跟踪當前是否處於差異模式
+
+document.addEventListener('DOMContentLoaded', function() {
+  const toggleDiffBtn = document.getElementById("toggle-diff-map-btn");
+  const toggleOrigBtn = document.getElementById("toggle-original-map-btn");
+  
+  if (toggleDiffBtn && toggleOrigBtn) {
+// 切換到差異地圖
+toggleDiffBtn.addEventListener('click', function() {
+  isDiffMode = true;
+  console.log("切換到差異地圖視圖 - 顯示百分比變化");
+  
+  // 按鈕顯示狀態切換
+  toggleDiffBtn.style.display = "none";
+  toggleOrigBtn.style.display = "inline-block";
+  
+  // 使用 fetch 獲取所有村里數據
+  fetch('http://localhost:3000/api/all-villages-data')
+    .then(response => response.json())
+    .then(data => {
+      console.log("原始數據範例:", data.slice(0, 5)); // 顯示前5筆數據作為除錯
+      
+      // 處理數據為差異百分比模式 - 自己重新計算百分比變化
+      const diffData = data.map(v => {
+        // 獲取原始風險值和新風險值
+        const originalRisk = parseFloat(v.original_risk || 0);
+        const newRisk = parseFloat(v.risk || 0);
+        
+        // 確保原始風險不為零
+        if (originalRisk === 0) return { ...v, diffPercent: 0, originalRisk: 0, newRisk: 0 };
+        
+        // 計算變化百分比：(新-舊)/舊*100
+        const diffPercent = ((newRisk - originalRisk) / originalRisk) * 100;
+        
+        return {
+          ...v,
+          diffPercent: diffPercent, // 存儲為數值
+          originalRisk: originalRisk,
+          newRisk: newRisk,
+          isPositive: diffPercent >= 0
+        };
+      });
+      
+      console.log("處理後數據範例:", diffData.slice(0, 5)); // 顯示處理後的前5筆數據作為除錯
+      
+      // 清除現有圖層
+      if (window.view2 && window.view2.map) {
+        const existingLayer = window.view2.map.findLayerById("dynamicRiskLayer");
+        if (existingLayer) window.view2.map.remove(existingLayer);
+        
+        // 創建新的差異圖層
+        if (typeof window.createDifferenceLayer === 'function') {
+          window.createDifferenceLayer(diffData, window.view2)
+            .then(() => {
+              if (typeof window.showSuccess === 'function') {
+                window.showSuccess("已切換至差異百分比視圖");
+              }
+            });
+        } else {
+          console.error("找不到 createDifferenceLayer 函數");
+          if (typeof window.showError === 'function') {
+            window.showError("無法創建差異圖層 - 函數未定義");
+          }
+        }
+      }
+    })
+    .catch(err => {
+      console.error("獲取村里數據失敗:", err);
+      if (typeof window.showError === 'function') {
+        window.showError("載入差異地圖失敗: " + err.message);
+      }
+    });
+});
+    
+    // 切換回原始地圖
+    toggleOrigBtn.addEventListener('click', function() {
+      isDiffMode = false;
+      console.log("切換回原始地圖視圖");
+      
+      // 按鈕顯示狀態切換
+      toggleOrigBtn.style.display = "none";
+      toggleDiffBtn.style.display = "inline-block";
+      
+      // 使用 fetch 獲取所有村里數據
+      fetch('http://localhost:3000/api/all-villages-data')
+        .then(response => response.json())
+        .then(data => {
+          // 使用原始風險值
+          const origData = data.map(v => ({
+            ...v,
+            risk: parseFloat(v.risk || 0)
+          }));
+          
+          // 清除現有圖層
+          if (window.view2 && window.view2.map) {
+            const existingLayer = window.view2.map.findLayerById("dynamicRiskLayer");
+            if (existingLayer) window.view2.map.remove(existingLayer);
+            
+            // 創建新的原始圖層
+            if (typeof window.createDynamicRiskLayer === 'function') {
+              window.createDynamicRiskLayer(origData, window.view2)
+                .then(() => {
+                  if (typeof window.showSuccess === 'function') {
+                    window.showSuccess("已切換回原始地圖視圖");
+                  }
+                });
+            }
+          }
+        })
+        .catch(err => {
+          console.error("獲取村里數據失敗:", err);
+          if (typeof window.showError === 'function') {
+            window.showError("載入原始地圖失敗: " + err.message);
+          }
+        });
+    });
+
+    
+    // 切換回原始地圖
+    toggleOrigBtn.addEventListener('click', function() {
+      isDiffMode = false;
+      console.log("切換回原始地圖視圖");
+      
+      // 按鈕顯示狀態切換
+      toggleOrigBtn.style.display = "none";
+      toggleDiffBtn.style.display = "inline-block";
+      
+      // 使用 fetch 獲取所有村里數據
+      fetch('http://localhost:3000/api/all-villages-data')
+        .then(response => response.json())
+        .then(data => {
+          // 使用原始風險值
+          const origData = data.map(v => ({
+            ...v,
+            risk: parseFloat(v.risk || 0)
+          }));
+          
+          // 清除現有圖層
+          if (window.view2 && window.view2.map) {
+            const existingLayer = window.view2.map.findLayerById("dynamicRiskLayer");
+            if (existingLayer) window.view2.map.remove(existingLayer);
+            
+            // 創建新的原始圖層
+            if (typeof window.createDynamicRiskLayer === 'function') {
+              window.createDynamicRiskLayer(origData, window.view2)
+                .then(() => {
+                  if (typeof window.showSuccess === 'function') {
+                    window.showSuccess("已切換回原始地圖視圖");
+                  }
+                });
+            }
+          }
+        })
+        .catch(err => {
+          console.error("獲取村里數據失敗:", err);
+          if (typeof window.showError === 'function') {
+            window.showError("載入原始地圖失敗: " + err.message);
+          }
+        });
+    });
+  }
+});
+
+</script>
+
+  <!-- 頁尾 -->
+  <footer>
+    <ul>
+      <li><a href="#">國家災害防救中心</a></li>
+      <li><a href="#">經濟部水利署</a></li>
+      <li><a href="#">美國旱災防救中心</a></li>
+      <li><a href="#">說明</a></li>
+    </ul>
+  </footer>
+
+<script src="dynamic-layer-renderer.js" defer></script>
+
+</body>
+
+</html>
